@@ -7,7 +7,7 @@ export default function AboutPage() {
       id="about"
       title="NdaY' Enterprise"
       description="Bridging Innovation and Community for a Sustainable Future."
-      align="center"
+      align="center" 
     >
       <div className="max-w-3xl mx-auto mb-12 text-center">
         <p className="text-white/80 text-lg leading-relaxed">
