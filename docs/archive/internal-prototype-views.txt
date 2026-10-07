@@ -1,0 +1,559 @@
+        <section className="mx-auto max-w-6xl space-y-8 px-6 py-14">
+          <section className="rounded-3xl border border-slate-300/15 bg-slate-400/10 p-8 backdrop-blur-sm">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-semibold text-white">NdaY&apos;Internal operating system</h2>
+                <p className="mt-3 max-w-3xl text-sm leading-relaxed text-white/72">
+                  NdaY&apos;Internal should work as a delivery-governance ERP where strategy becomes execution, execution becomes
+                  evidence, and evidence becomes institutional learning.
+                </p>
+              </div>
+              <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-cyan-200">
+                Internal ERP
+              </span>
+            </div>
+            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {internalHierarchy.map((item, index) => (
+                <div key={item.title} className="rounded-2xl border border-white/10 bg-black/25 p-5">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500/20 text-sm font-semibold text-cyan-200">
+                      {index + 1}
+                    </span>
+                    <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+                  </div>
+                  <p className="mt-4 text-sm leading-relaxed text-white/72">{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-sm">
+              <h2 className="text-2xl font-semibold text-white">Operating workflow</h2>
+              <div className="mt-6 space-y-4">
+                {internalWorkflow.map((step, index) => (
+                  <div key={step.stage} className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-500/20 text-sm font-semibold text-slate-100">
+                        {index + 1}
+                      </span>
+                      <h3 className="text-base font-semibold text-white">{step.stage}</h3>
+                    </div>
+                    <p className="mt-3 text-sm leading-relaxed text-white/72">{step.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="space-y-8">
+              <section className="rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-sm">
+                <h2 className="text-2xl font-semibold text-white">Governance roles</h2>
+                <div className="mt-6 flex flex-wrap gap-2">
+                  {internalRoles.map((role) => (
+                    <span
+                      key={role}
+                      className="rounded-full border border-slate-300/20 bg-slate-400/10 px-3 py-2 text-sm text-slate-100"
+                    >
+                      {role}
+                    </span>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-3">
+                  {internalViews.map((view) => {
+                    const isActive = activeInternalView === view.id;
+                    return (
+                      <Link
+                        key={view.id}
+                        href={`/ecosystem/${dpi.id}?tab=${view.id}`}
+                        className={`rounded-full border px-4 py-2 text-sm font-medium transition ${getInternalTabClasses(isActive)}`}
+                        aria-current={isActive ? "page" : undefined}
+                      >
+                        {view.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+                <p className="mt-4 text-sm text-white/55">
+                  Active module: {internalViews.find((view) => view.id === activeInternalView)?.label ?? internalViews[0].label}
+                </p>
+              </section>
+            </div>
+          </div>
+
+          {activeInternalView === "portfolio" && (
+            <InternalTabPanel
+              id="portfolio"
+              title="Programme portfolio board"
+              description="The planning engine should structure programmes first, then translate them into governed projects with owners, scope, time, budget, readiness and approval states."
+              badge="Portfolio view"
+            >
+              <div className="grid gap-8 xl:grid-cols-[0.92fr_1.08fr]">
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                    <h3 className="text-base font-semibold text-white">Programme planning fields</h3>
+                    <div className="mt-4 grid gap-3">
+                      {programmePlanningFields.map((field) => (
+                        <div key={field.label} className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/72">
+                          <p className="font-medium text-white">{field.label}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-cyan-300">{field.group}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {sampleProgrammes.map((programme) => (
+                    <article key={programme.id} className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">{programme.code}</p>
+                          <h3 className="mt-2 text-lg font-semibold text-white">{programme.title}</h3>
+                        </div>
+                        <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white/65">
+                          {programme.status}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm leading-relaxed text-white/68">{programme.summary}</p>
+                      <div className="mt-4 grid gap-2 text-xs text-white/55 sm:grid-cols-2">
+                        <p>Owner: {programme.owner}</p>
+                        <p>Governance: {programme.governanceOwner}</p>
+                        <p>Readiness: {programme.readiness}</p>
+                        <p>Approval: {programme.approvalState}</p>
+                        <p>Budget: {programme.budget.planned.toLocaleString("fr-FR")} MGA</p>
+                        <p>Funding: {programme.fundingSources.join(", ")}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </InternalTabPanel>
+          )}
+
+          {activeInternalView === "delivery" && (
+            <InternalTabPanel
+              id="delivery"
+              title="Project registry and delivery dashboard"
+              description="The project registry should give Internal ERP a governed list of active projects with scope, owners, readiness, risk and delivery checkpoints."
+              badge="Delivery view"
+            >
+              <div className="grid gap-8 xl:grid-cols-[0.92fr_1.08fr]">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                  <h3 className="text-base font-semibold text-white">Project planning fields</h3>
+                  <div className="mt-4 grid gap-3">
+                    {projectPlanningFields.map((field) => (
+                      <div key={field.label} className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/72">
+                        <p className="font-medium text-white">{field.label}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.18em] text-indigo-300">{field.group}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-4">
+                  {sampleProjects.map((project) => (
+                    <article key={project.id} className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-white/72">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-indigo-300">{project.code}</p>
+                          <h3 className="mt-2 text-lg font-semibold text-white">{project.title}</h3>
+                        </div>
+                        <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white/65">{project.status}</span>
+                      </div>
+                      <p className="mt-3 leading-relaxed text-white/65">{project.scope}</p>
+                      <div className="mt-4 grid gap-2 text-xs text-white/55 sm:grid-cols-2">
+                        <p>Programme: {project.programme}</p>
+                        <p>Owner: {project.owner}</p>
+                        <p>Approval: {project.approvalState}</p>
+                        <p>Budget: {project.budget.planned.toLocaleString("fr-FR")} MGA</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </InternalTabPanel>
+          )}
+
+          {activeInternalView === "execution" && (
+            <InternalTabPanel
+              id="execution"
+              title="Activity execution board"
+              description="Activity execution should surface immediate work packages, due dates, blockers and evidence expectations for operational follow-up."
+              badge="Execution view"
+            >
+              <div className="grid gap-4 lg:grid-cols-2">
+                {sampleProjects.map((project) => (
+                  <article key={project.id} className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-white/72">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-semibold text-white">{project.title}</h3>
+                      <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-xs text-amber-200">{project.readiness}</span>
+                    </div>
+                    <p className="mt-3 text-white/60">Checkpoint: {project.checkpointSchedule}</p>
+                    <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-white/60">
+                      Delivery logic: {project.deliveryLogic}
+                    </div>
+                    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/55">
+                      Expected outputs: {project.expectedOutputs.join(", ")}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </InternalTabPanel>
+          )}
+
+          {activeInternalView === "resources" && (
+            <InternalTabPanel
+              id="resources"
+              title="Resource and budget tracker"
+              description="Resources should combine people, budgets, suppliers, assets and partner allocations under one operational tracking surface."
+              badge="Resource view"
+            >
+              <div className="grid gap-4 lg:grid-cols-2">
+                {sampleProgrammes.map((programme) => (
+                  <article key={programme.id} className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-white/72">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-semibold text-white">{programme.title}</h3>
+                      <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200">{programme.riskLevel}</span>
+                    </div>
+                    <div className="mt-4 grid gap-2 text-xs text-white/55 sm:grid-cols-2">
+                      <p>Planned: {programme.budget.planned.toLocaleString("fr-FR")} MGA</p>
+                      <p>Committed: {programme.budget.committed.toLocaleString("fr-FR")} MGA</p>
+                      <p>Actual: {programme.budget.actual.toLocaleString("fr-FR")} MGA</p>
+                      <p>Territories: {programme.territories.join(", ")}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </InternalTabPanel>
+          )}
+
+          {activeInternalView === "hr" && (
+            <InternalTabPanel
+              id="hr"
+              title="HR and payroll workspace"
+              description="NdaY&apos;Internal should manage staffing, payroll readiness, leave approvals and departmental capacity as part of the same enterprise operating system that governs programmes and projects."
+              badge="HR view"
+            >
+              <div className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-semibold text-white">Department capacity</h3>
+                      <span className="text-xs uppercase tracking-[0.2em] text-white/45">HR structure</span>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {sampleDepartments.map((department) => (
+                        <div key={department.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.22em] text-emerald-300">{department.code}</p>
+                              <p className="mt-1 text-sm font-semibold text-white">{department.name}</p>
+                            </div>
+                            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
+                              {department.headcountActive}/{department.headcountPlanned} active
+                            </span>
+                          </div>
+                          <p className="mt-3 text-xs text-white/60">Lead: {department.lead}</p>
+                          <p className="mt-1 text-xs text-white/45">Cost center: {department.costCenter}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-semibold text-white">Payroll register</h3>
+                      <span className="text-xs uppercase tracking-[0.2em] text-white/45">Monthly cycle</span>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {samplePayroll.map((payroll) => (
+                        <div key={payroll.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">{payroll.employeeName}</p>
+                              <p className="mt-1 text-xs uppercase tracking-[0.18em] text-emerald-300">{payroll.periodLabel}</p>
+                            </div>
+                            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200">
+                              {payroll.status}
+                            </span>
+                          </div>
+                          <div className="mt-3 grid gap-2 text-xs text-white/65 sm:grid-cols-3">
+                            <p>Gross: {payroll.grossPay.toLocaleString("fr-FR")} MGA</p>
+                            <p>Deductions: {payroll.deductions.toLocaleString("fr-FR")} MGA</p>
+                            <p>Net: {payroll.netPay.toLocaleString("fr-FR")} MGA</p>
+                          </div>
+                          <p className="mt-2 text-xs text-white/45">Bank instruction: {payroll.bankInstructionRef ?? "Pending"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-semibold text-white">Employee roster</h3>
+                      <span className="text-xs uppercase tracking-[0.2em] text-white/45">Core team</span>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {sampleEmployees.map((employee) => (
+                        <div key={employee.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">{employee.fullName}</p>
+                              <p className="mt-1 text-xs text-white/60">{employee.title}</p>
+                            </div>
+                            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">
+                              {employee.employmentStatus}
+                            </span>
+                          </div>
+                          <div className="mt-3 grid gap-2 text-xs text-white/65 sm:grid-cols-2">
+                            <p>Department: {employee.department}</p>
+                            <p>Contract: {employee.contractType}</p>
+                            <p>Manager: {employee.manager}</p>
+                            <p>Bank: {employee.bankName ?? "Not assigned"} · {employee.bankAccountMasked ?? "Pending"}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-semibold text-white">Leave approvals</h3>
+                      <span className="text-xs uppercase tracking-[0.2em] text-white/45">Queue</span>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {sampleLeaveRecords.map((leave) => (
+                        <div key={leave.id} className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/72">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p className="font-semibold text-white">{leave.type} leave</p>
+                            <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-xs text-amber-200">
+                              {leave.status}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-white/60">Employee reference: {leave.employeeId}</p>
+                          <p className="mt-1 text-xs text-white/45">{leave.startDate} → {leave.endDate} · Approver: {leave.approver}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </InternalTabPanel>
+          )}
+
+          {activeInternalView === "finance" && (
+            <InternalTabPanel
+              id="finance"
+              title="Finance and treasury workspace"
+              description="Treasury, cash position, departmental finance flows and approval-controlled transactions should sit in the same Internal ERP workspace as workforce, delivery and governance."
+              badge="Finance view"
+            >
+              <div className="grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-semibold text-white">Treasury accounts</h3>
+                      <span className="text-xs uppercase tracking-[0.2em] text-white/45">Cash position</span>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {sampleTreasuryAccounts.map((account) => (
+                        <div key={account.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">{account.accountName}</p>
+                              <p className="mt-1 text-xs uppercase tracking-[0.18em] text-sky-300">{account.bankName}</p>
+                            </div>
+                            <span className="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-xs text-sky-200">
+                              {account.accountType}
+                            </span>
+                          </div>
+                          <div className="mt-3 grid gap-2 text-xs text-white/65 sm:grid-cols-2">
+                            <p>Available: {account.availableBalance.toLocaleString("fr-FR")} MGA</p>
+                            <p>Ledger: {account.ledgerBalance.toLocaleString("fr-FR")} MGA</p>
+                          </div>
+                          <p className="mt-2 text-xs text-white/45">Signatories: {account.signatoryGroup}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-semibold text-white">Finance transactions</h3>
+                      <span className="text-xs uppercase tracking-[0.2em] text-white/45">Approved flows</span>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {sampleFinanceTransactions.map((transaction) => (
+                        <div key={transaction.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">{transaction.reference}</p>
+                              <p className="mt-1 text-xs text-white/60">{transaction.category} · {transaction.counterparty}</p>
+                            </div>
+                            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200">
+                              {transaction.status}
+                            </span>
+                          </div>
+                          <div className="mt-3 grid gap-2 text-xs text-white/65 sm:grid-cols-3">
+                            <p>Direction: {transaction.direction}</p>
+                            <p>Date: {transaction.transactionDate}</p>
+                            <p>Amount: {transaction.amount.toLocaleString("fr-FR")} MGA</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-semibold text-white">Financial control lens</h3>
+                      <span className="text-xs uppercase tracking-[0.2em] text-white/45">Operational view</span>
+                    </div>
+                    <div className="mt-4 grid gap-3 text-sm text-white/70">
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-4">Payroll releases are mapped against treasury balances and approved transfer references.</div>
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-4">Programme-level inflows and outflows remain visible without leaving the Internal ERP surface.</div>
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-4">Finance approvals, signatory groups and posting traces can later connect directly to Firestore workflows.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </InternalTabPanel>
+          )}
+
+          {activeInternalView === "logistics" && (
+            <InternalTabPanel
+              id="logistics"
+              title="Logistics and assets workspace"
+              description="Procurement, assigned assets and maintenance conditions should be navigable as a dedicated Internal ERP module."
+              badge="Logistics view"
+            >
+              <div className="mt-8 grid gap-8 lg:grid-cols-2">
+                <div className="space-y-3">
+                  {sampleProcurement.map((item) => (
+                    <div key={item.id} className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/72">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold text-white">{item.title}</p>
+                        <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-xs text-amber-200">{item.status}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-white/60">{item.requestCode} · {item.requestingUnit}</p>
+                      <p className="mt-1 text-xs text-white/45">Expected delivery: {item.expectedDeliveryDate} · {item.amount.toLocaleString("fr-FR")} MGA</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-3">
+                  {sampleAssets.map((asset) => (
+                    <div key={asset.id} className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/72">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold text-white">{asset.name}</p>
+                        <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 text-xs text-fuchsia-200">{asset.status}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-white/60">{asset.assetCode} · {asset.location}</p>
+                      <p className="mt-1 text-xs text-white/45">Assigned: {asset.assignedTo} · {asset.acquisitionValue.toLocaleString("fr-FR")} MGA</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </InternalTabPanel>
+          )}
+
+          {activeInternalView === "reporting" && (
+            <InternalTabPanel
+              id="reporting"
+              title="Fiscal and bank reporting views"
+              description="NdaY&apos;Internal should prepare fiscal submissions, bank reconciliations and payroll-bank reporting inside a traceable governance flow that links finance records to institutional compliance."
+              badge="Reporting view"
+            >
+              <div className="grid gap-8 lg:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-base font-semibold text-white">Fiscal reporting queue</h3>
+                    <span className="text-xs uppercase tracking-[0.2em] text-white/45">Compliance</span>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {sampleFiscalReports.map((report) => (
+                      <div key={report.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">{report.reportName}</p>
+                            <p className="mt-1 text-xs text-white/60">{report.periodLabel} · {report.authority}</p>
+                          </div>
+                          <span className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-xs text-violet-200">
+                            {report.status}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-xs text-white/45">Owner: {report.owner}{report.submissionDate ? ` · Submitted ${report.submissionDate}` : " · Submission pending"}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-base font-semibold text-white">Bank reporting queue</h3>
+                    <span className="text-xs uppercase tracking-[0.2em] text-white/45">Reconciliation</span>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {sampleBankReports.map((report) => (
+                      <div key={report.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">{report.reportType}</p>
+                            <p className="mt-1 text-xs text-white/60">{report.periodLabel} · Account {report.accountId}</p>
+                          </div>
+                          <span className="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-xs text-sky-200">
+                            {report.status}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-xs text-white/60">Generated on {report.generatedOn}</p>
+                        <p className="mt-1 text-xs text-white/45">{report.notes}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </InternalTabPanel>
+          )}
+
+          {activeInternalView === "evidence" && (
+            <InternalTabPanel
+              id="evidence"
+              title="Outputs and evidence register"
+              description="Outputs and evidence should remain reviewable as traceable delivery artefacts instead of disappearing into narrative reports."
+              badge="Evidence view"
+            >
+              <div className="grid gap-4 lg:grid-cols-2">
+                {sampleProjects.map((project) => (
+                  <article key={project.id} className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-white/72">
+                    <h3 className="text-base font-semibold text-white">{project.title}</h3>
+                    <p className="mt-2 text-white/60">Expected outputs: {project.expectedOutputs.join(", ")}</p>
+                    <p className="mt-3 text-xs text-white/50">Dependencies: {project.dependencies.join(", ")}</p>
+                  </article>
+                ))}
+              </div>
+            </InternalTabPanel>
+          )}
+
+          {activeInternalView === "outcomes" && (
+            <InternalTabPanel
+              id="outcomes"
+              title="Outcome and impact review panel"
+              description="Internal governance should review whether outputs are creating observable institutional and territorial change."
+              badge="Outcome view"
+            >
+              <div className="grid gap-4 lg:grid-cols-2">
+                {sampleProgrammes.map((programme) => (
+                  <article key={programme.id} className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-white/72">
+                    <h3 className="text-base font-semibold text-white">{programme.title}</h3>
+                    <p className="mt-2 text-white/60">Focus: {programme.focus}</p>
+                    <p className="mt-3 text-xs text-white/50">Funding: {programme.fundingSources.join(", ")}</p>
+                  </article>
+                ))}
+              </div>
+            </InternalTabPanel>
+          )}
+        </section>

@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function staffDoc() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
+    }
+    function isStaff() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+        && staffDoc().active == true;
+    }
+    function role() { return staffDoc().role; }
+    function isAdmin() { return isStaff() && role() == 'admin'; }
+    function canWrite() { return isStaff() && role() in ['admin', 'manager']; }
+    function canFinance() { return isStaff() && role() in ['admin', 'manager', 'finance']; }
+    function validAllocation() {
+      let d = request.resource.data;
+      return d.quantity is number && d.quantity > 0
+        && d.loadPercent is number && d.loadPercent >= 1 && d.loadPercent <= 100
+        && d.startDate is string && d.endDate is string && d.endDate >= d.startDate;
+    }
+    function validAmounts() {
+      let d = request.resource.data;
+      return d.plannedAmount is number && d.committedAmount is number && d.actualAmount is number
+        && d.plannedAmount >= 0 && d.committedAmount >= 0 && d.actualAmount >= 0
+        && d.committedAmount <= d.plannedAmount && d.actualAmount <= d.committedAmount;
+    }
+
+    match /staff/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Programmes and projects: approval state changes are controlled.
+    match /{kind}/{id} {
+      allow read: if isStaff() && kind in ['programmes', 'projects'];
+      allow create: if canWrite() && kind in ['programmes', 'projects']
+        && request.resource.data.approvalState == 'Not Submitted';
+      allow update: if canWrite() && kind in ['programmes', 'projects']
+        && (request.resource.data.approvalState == resource.data.approvalState
+            || isAdmin()
+            || request.resource.data.approvalState in ['Not Submitted', 'Submitted', 'Under Review']);
+      allow delete: if false;
+    }
+
+    // Activities and tasks: staff read, managers and admins write.
+    match /{kind}/{id} {
+      allow read: if isStaff() && kind in ['activities', 'tasks', 'resources'];
+      allow create, update: if canWrite() && kind in ['activities', 'tasks', 'resources'];
+      allow delete: if false;
+    }
+
+    // Deliverables: only administrators can validate or reject.
+    match /deliverables/{id} {
+      allow read: if isStaff();
+      allow create: if canWrite() && request.resource.data.status in ['Expected', 'In Validation'];
+      allow update: if canWrite()
+        && (request.resource.data.status == resource.data.status
+            || isAdmin()
+            || request.resource.data.status in ['Expected', 'In Validation']);
+      allow delete: if false;
+    }
+
+    // Budget lines: finance data. Approval is administrator-only.
+    match /budgetLines/{id} {
+      allow read: if canFinance();
+      allow create: if canFinance() && validAmounts()
+        && request.resource.data.status in ['Draft', 'Submitted'];
+      allow update: if canFinance() && validAmounts()
+        && (request.resource.data.status == resource.data.status
+            || isAdmin()
+            || request.resource.data.status in ['Draft', 'Submitted']);
+      allow delete: if false;
+    }
+
+    // Resource allocations: managers propose; only administrators confirm or cancel.
+    match /allocations/{id} {
+      allow read: if isStaff();
+      allow create: if canWrite() && validAllocation() && request.resource.data.status == 'Proposed';
+      allow update: if canWrite() && validAllocation()
+        && (request.resource.data.status == resource.data.status
+            || isAdmin()
+            || request.resource.data.status == 'Proposed'
+            || (request.resource.data.status == 'Completed' && resource.data.status == 'Confirmed'));
+      allow delete: if false;
+    }
+
+    match /auditLog/{id} {
+      allow read: if isAdmin();
+      allow create: if canFinance();
+      allow update, delete: if false;
+    }
+  }
+}

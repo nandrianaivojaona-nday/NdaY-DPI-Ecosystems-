@@ -1,0 +1,19 @@
+{
+  "product": "NdaY' Digital Public Infrastructure Ecosystems",
+  "organization": "NdaY' Individual Enterprise",
+  "version": "9.2.0",
+  "major": 9,
+  "minor": 2,
+  "patch": 0,
+  "engineeringGeneration": 9,
+  "codename": "NdaY'DPI Ecosystems",
+  "ecosystemArchitecture": "9.2",
+  "tveEngine": "3.0.0",
+  "releaseDate": "2026-10-05",
+  "build": "",
+  "buildTimestamp": "",
+  "commit": "",
+  "branch": "",
+  "environment": "",
+  "node": ""
+}
