@@ -39,7 +39,7 @@ import {
 } from "firebase/firestore";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { Button } from "@/components/ui/Button";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
 
 type Priority = "High" | "Medium" | "Low";
 
@@ -160,7 +160,14 @@ function normalizeBooking(docId: string, data: DocumentData, sourceCollection = 
     status: String(data.status ?? data.requestStatus ?? "pending"),
     serviceName: data.serviceName ?? data.serviceTitle ?? data.title ?? data.name ?? "Service request",
     customerName: data.customerName ?? data.memberName ?? data.requestedBy ?? data.requesterName ?? "Customer",
-    amount: typeof data.amount === "number" ? data.amount : typeof data.totalAmount === "number" ? data.totalAmount : typeof data.price === "number" ? data.price : undefined,
+    amount:
+      typeof data.amount === "number"
+        ? data.amount
+        : typeof data.totalAmount === "number"
+          ? data.totalAmount
+          : typeof data.price === "number"
+            ? data.price
+            : undefined,
     createdAt: data.createdAt ?? data.updatedAt ?? null,
     sourceCollection,
   };
@@ -170,7 +177,14 @@ function normalizePayment(docId: string, data: DocumentData, sourceCollection = 
   return {
     id: docId,
     status: data.status,
-    amount: typeof data.amount === "number" ? data.amount : typeof data.totalAmount === "number" ? data.totalAmount : typeof data.price === "number" ? data.price : undefined,
+    amount:
+      typeof data.amount === "number"
+        ? data.amount
+        : typeof data.totalAmount === "number"
+          ? data.totalAmount
+          : typeof data.price === "number"
+            ? data.price
+            : undefined,
     createdAt: data.createdAt ?? data.updatedAt ?? null,
     sourceCollection,
   };
@@ -200,7 +214,7 @@ function normalizeReview(docId: string, data: DocumentData, sourceCollection = "
   };
 }
 
-export default function OperatorDashboardPage() {
+export default function OperatorPage() {
   const [operatorId, setOperatorId] = useState<string | null>(null);
   const [operatorProfile, setOperatorProfile] = useState<OperatorProfile | null>(null);
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
@@ -211,11 +225,24 @@ export default function OperatorDashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    if (!isFirebaseConfigured || !auth) {
+      setLoading(false);
+      setError(
+        "Firebase is not configured for this environment. Add the NEXT_PUBLIC_FIREBASE_* variables to enable the operator workspace."
+      );
+      return;
+    }
+
+    const unsubscribe = auth.onAuthStateChanged((user) => {
       if (!user) {
         setOperatorId(null);
+        setOperatorProfile(null);
+        setBookings([]);
+        setPayments([]);
+        setAlerts([]);
+        setReviews([]);
         setLoading(false);
-        setError("Sign in as an operator account to load live dashboard data.");
+        setError("Please sign in with an operator account to access this workspace.");
         return;
       }
 
@@ -228,7 +255,7 @@ export default function OperatorDashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!operatorId) return;
+    if (!isFirebaseConfigured || !db || !operatorId) return;
 
     let profileLoaded = false;
     const unsubscribers: Array<() => void> = [];
@@ -276,6 +303,9 @@ export default function OperatorDashboardPage() {
     ) => {
       const attempts = filters.map((field) => {
         const constraints = [where(field, "==", operatorId), ...extraConstraints];
+        if (!db) {
+          throw new Error("Firestore database instance is not initialized.");
+        }
         const q = query(collection(db, name), ...constraints);
         return onSnapshot(
           q,
@@ -300,10 +330,11 @@ export default function OperatorDashboardPage() {
     unsubscribers.push(
       subscribeCollection<BookingRecord>(
         "public-services",
-        (items) => setBookings((current) => {
-          const merged = [...current.filter((item) => item.sourceCollection !== "public-services"), ...items];
-          return merged.sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
-        }),
+        (items) =>
+          setBookings((current) => {
+            const merged = [...current.filter((item) => item.sourceCollection !== "public-services"), ...items];
+            return merged.sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
+          }),
         normalizeBooking,
         [orderBy("createdAt", "desc")],
         ["operatorId", "providerId"]
@@ -323,10 +354,11 @@ export default function OperatorDashboardPage() {
     unsubscribers.push(
       subscribeCollection<PaymentRecord>(
         "trust-services",
-        (items) => setPayments((current) => {
-          const merged = [...current.filter((item) => item.sourceCollection !== "trust-services"), ...items];
-          return merged.sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
-        }),
+        (items) =>
+          setPayments((current) => {
+            const merged = [...current.filter((item) => item.sourceCollection !== "trust-services"), ...items];
+            return merged.sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
+          }),
         normalizePayment,
         [orderBy("createdAt", "desc")],
         ["operatorId", "providerId"]
@@ -358,325 +390,361 @@ export default function OperatorDashboardPage() {
     };
   }, [operatorId]);
 
-  const bookingPipeline = useMemo(() => {
-    const counts = {
-      pending: 0,
-      confirmed: 0,
-      progress: 0,
-      attention: 0,
-    };
+  const pendingBookings = useMemo(
+    () => bookings.filter((booking) => booking.status.toLowerCase().includes("pending")).length,
+    [bookings]
+  );
 
-    bookings.forEach((booking) => {
-      const status = booking.status.toLowerCase();
-      if (["pending", "requested", "awaiting_confirmation"].includes(status)) {
-        counts.pending += 1;
-      } else if (["confirmed", "approved", "scheduled"].includes(status)) {
-        counts.confirmed += 1;
-      } else if (["in_progress", "ongoing", "active"].includes(status)) {
-        counts.progress += 1;
-      } else if (["cancelled", "failed", "disputed", "attention", "issue"].includes(status)) {
-        counts.attention += 1;
-      }
-    });
+  const completedBookings = useMemo(
+    () => bookings.filter((booking) => booking.status.toLowerCase().includes("complete")).length,
+    [bookings]
+  );
 
-    return [
-      { label: "Pending", count: counts.pending, icon: Clock3, tone: "text-amber-300" },
-      { label: "Confirmed", count: counts.confirmed, icon: CheckCircle2, tone: "text-cyan-300" },
-      { label: "In progress", count: counts.progress, icon: Activity, tone: "text-violet-300" },
-      { label: "Attention needed", count: counts.attention, icon: AlertCircle, tone: "text-rose-300" },
-    ];
-  }, [bookings]);
-
-  const totalRevenue = useMemo(
-    () => payments.reduce((sum, payment) => sum + (payment.amount ?? 0), 0),
+  const revenueTotal = useMemo(
+    () =>
+      payments.reduce((sum, payment) => {
+        if (!["paid", "settled", "completed"].includes(String(payment.status ?? "").toLowerCase())) {
+          return sum;
+        }
+        return sum + (payment.amount ?? 0);
+      }, 0),
     [payments]
   );
 
   const averageRating = useMemo(() => {
-    const rated = reviews.map((review) => review.rating).filter((value): value is number => typeof value === "number");
-    if (!rated.length) return null;
-    return rated.reduce((sum, rating) => sum + rating, 0) / rated.length;
+    const validRatings = reviews
+      .map((review) => review.rating)
+      .filter((rating): rating is number => typeof rating === "number" && Number.isFinite(rating));
+    if (!validRatings.length) return null;
+    return validRatings.reduce((sum, rating) => sum + rating, 0) / validRatings.length;
   }, [reviews]);
 
-  const liveTasks = alerts.length
-    ? alerts
-    : [
-        {
-          id: "fallback-profile",
-          title: "Complete operator onboarding",
-          meta: operatorProfile?.status ?? "Pending setup",
-          priority: "Medium" as Priority,
-        },
-      ];
+  const recentActivity = useMemo<ActivityItem[]>(() => {
+    const bookingActivity = bookings.slice(0, 4).map((booking) => ({
+      id: `booking-${booking.id}`,
+      title: booking.serviceName ?? "Service request",
+      detail: `${booking.customerName ?? "Customer"} · ${booking.status}`,
+      time: toDateLabel(booking.createdAt),
+    }));
 
-  const activityFeed: ActivityItem[] = bookings.slice(0, 4).map((booking) => ({
-    id: booking.id,
-    title: `${booking.serviceName ?? "Service request"} booking`,
-    detail: `${booking.customerName ?? "Customer"} · ${booking.status.replaceAll("_", " ")}`,
-    time: toDateLabel(booking.createdAt),
-  }));
+    const paymentActivity = payments.slice(0, 3).map((payment) => ({
+      id: `payment-${payment.id}`,
+      title: "Payment update",
+      detail: `${payment.status ?? "Processing"} · ${toCurrency(payment.amount)}`,
+      time: toDateLabel(payment.createdAt),
+    }));
 
-  const kpis = [
+    return [...bookingActivity, ...paymentActivity].slice(0, 6);
+  }, [bookings, payments]);
+
+  const stats = [
     {
-      label: "Active services",
-      value: String(operatorProfile?.serviceCount ?? 0),
-      change: operatorProfile?.coverageZone ? `Coverage: ${operatorProfile.coverageZone}` : "No coverage zone set",
-      icon: Briefcase,
+      label: "Pending bookings",
+      value: pendingBookings.toString(),
+      hint: "Awaiting review",
+      icon: Clock3,
+      accent: "from-amber-400/20 to-orange-500/10",
     },
     {
-      label: "Open bookings",
-      value: String(bookings.length),
-      change: `${bookingPipeline[0].count} awaiting confirmation`,
-      icon: CalendarDays,
+      label: "Completed services",
+      value: completedBookings.toString(),
+      hint: "Closed successfully",
+      icon: CheckCircle2,
+      accent: "from-emerald-400/20 to-teal-500/10",
     },
     {
-      label: "Monthly revenue",
-      value: toCurrency(totalRevenue),
-      change: `${payments.length} payment records tracked`,
+      label: "Revenue processed",
+      value: toCurrency(revenueTotal),
+      hint: "Paid and settled",
       icon: Wallet,
+      accent: "from-sky-400/20 to-cyan-500/10",
     },
     {
-      label: "Customer rating",
-      value: averageRating ? `${averageRating.toFixed(1)} / 5` : "No ratings",
-      change: reviews.length ? `Based on ${reviews.length} reviews` : "No review data yet",
-      icon: BadgeCheck,
+      label: "Average rating",
+      value: averageRating ? averageRating.toFixed(1) : "—",
+      hint: reviews.length ? `${reviews.length} reviews` : "No reviews yet",
+      icon: Sparkles,
+      accent: "from-fuchsia-400/20 to-purple-500/10",
     },
   ];
 
-  return (
-    <main className="relative px-4 pb-32 pt-24 sm:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <GlassPanel className="overflow-hidden p-0" hoverable={false}>
-          <div className="grid gap-0 lg:grid-cols-[1.4fr_0.9fr]">
-            <div className="p-6 sm:p-8 lg:p-10">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200">
-                <ShieldCheck className="h-4 w-4" />
-                Operator workspace
-              </div>
+  if (loading) {
+    return (
+      <main className="mx-auto flex min-h-[70vh] max-w-7xl items-center justify-center px-6 py-24 text-white">
+        <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-white/80 backdrop-blur-sm">
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          Loading the operator workspace…
+        </div>
+      </main>
+    );
+  }
 
-              <div className="max-w-3xl space-y-4">
-                <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-5xl">
-                  {operatorProfile?.name ? `${operatorProfile.name} dashboard` : "Live operator dashboard"}
+  return (
+    <main className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-12 text-white">
+      <section className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+        <GlassPanel className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/15 via-slate-950/70 to-emerald-500/10 p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-4">
+              <span className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.24em] text-cyan-100">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Operator workspace
+              </span>
+              <div className="space-y-3">
+                <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                  {operatorProfile?.name ?? "Operator Command Center"}
                 </h1>
-                <p className="max-w-2xl text-sm text-white/70 sm:text-base">
-                  Real-time service data is loaded from Firestore for operator profile, bookings,
-                  payments, alerts, and customer feedback.
+                <p className="max-w-2xl text-sm leading-7 text-white/70 sm:text-base">
+                  Monitor operational readiness, booking demand, payments, community traction, and trust signals
+                  from one interface designed for service providers in the NdaY&apos;DPI Ecosystems 9.2.
                 </p>
               </div>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Button href="/partner" variant="primary">
-                  Open operator setup
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-                <Button href="/ecosystem" variant="secondary">
-                  Explore ecosystem modules
-                </Button>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-white/65">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                  <Building2 className="h-4 w-4" />
+                  {operatorProfile?.officeAddress ?? "Office address pending"}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                  <MapPinned className="h-4 w-4" />
+                  {operatorProfile?.coverageZone ?? "Coverage zone pending"}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                  <BadgeCheck className="h-4 w-4" />
+                  {operatorProfile?.status ?? "Status unavailable"}
+                </span>
               </div>
-
-              {(loading || error || operatorProfile?.contactEmail) && (
-                <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-white/65">
-                  {loading && (
-                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2">
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                      Loading Firestore data
-                    </span>
-                  )}
-                  {operatorProfile?.contactEmail && (
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">
-                      {operatorProfile.contactEmail}
-                    </span>
-                  )}
-                  {error && (
-                    <span className="rounded-full border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-rose-200">
-                      {error}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
-
-            <div className="border-t border-white/10 bg-black/20 p-6 sm:p-8 lg:border-l lg:border-t-0">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-                {bookingPipeline.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div
-                      key={item.label}
-                      className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.2em] text-white/45">
-                            {item.label}
-                          </p>
-                          <p className="mt-2 text-3xl font-semibold text-white">{item.count}</p>
-                        </div>
-                        <Icon className={`h-5 w-5 ${item.tone}`} />
-                      </div>
-                    </div>
-                  );
-                })}
+            <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-sm text-white/70">
+              <div className="flex items-center gap-3">
+                <Bell className="h-4 w-4 text-cyan-200" />
+                <div>
+                  <p className="font-medium text-white">Priority alerts</p>
+                  <p>{alerts.length ? `${alerts.length} active operational alerts` : "No active alerts detected"}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Users className="h-4 w-4 text-emerald-200" />
+                <div>
+                  <p className="font-medium text-white">Service capacity</p>
+                  <p>{operatorProfile?.serviceCount ?? 0} registered services across your operator profile</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Briefcase className="h-4 w-4 text-fuchsia-200" />
+                <div>
+                  <p className="font-medium text-white">Operator ID</p>
+                  <p className="break-all text-white/60">{operatorId ?? "Not signed in"}</p>
+                </div>
               </div>
             </div>
           </div>
         </GlassPanel>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {kpis.map((item) => {
-            const Icon = item.icon;
-            return (
-              <GlassPanel key={item.label} className="p-5 sm:p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm text-white/60">{item.label}</p>
-                    <p className="mt-3 text-3xl font-semibold text-white">{item.value}</p>
-                    <p className="mt-2 text-sm text-cyan-200/90">{item.change}</p>
-                  </div>
-                  <div className="rounded-2xl bg-white/8 p-3 text-cyan-200">
-                    <Icon className="h-5 w-5" />
-                  </div>
+        <GlassPanel className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                <Activity className="h-5 w-5 text-cyan-200" />
+              </div>
+              <div>
+                <p className="text-sm uppercase tracking-[0.22em] text-white/45">Operational status</p>
+                <h2 className="text-xl font-semibold text-white">Live service overview</h2>
+              </div>
+            </div>
+
+            {error ? (
+              <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>{error}</p>
                 </div>
-              </GlassPanel>
-            );
-          })}
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <GlassPanel className="p-6 sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">Quick actions</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Key operator controls</h2>
               </div>
-              <Sparkles className="hidden h-5 w-5 text-cyan-200 sm:block" />
-            </div>
-
-            <div className="mt-6 grid gap-4 lg:grid-cols-3">
-              {quickActions.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <Link
-                    key={action.title}
-                    href={action.href}
-                    className="group rounded-3xl border border-white/10 bg-black/20 p-5 transition hover:border-cyan-400/30 hover:bg-white/8"
-                  >
-                    <div className="flex h-full flex-col">
-                      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-200">
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <h3 className="text-lg font-semibold text-white">{action.title}</h3>
-                      <p className="mt-3 text-sm text-white/65">{action.description}</p>
-                      <span className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-cyan-200">
-                        Open module
-                        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </GlassPanel>
-
-          <GlassPanel className="p-6 sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">Alerts</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Priority queue</h2>
+            ) : (
+              <div className="space-y-3 text-sm text-white/70">
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3">
+                  <span>Bookings being tracked</span>
+                  <span className="font-semibold text-white">{bookings.length}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3">
+                  <span>Payment records synced</span>
+                  <span className="font-semibold text-white">{payments.length}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3">
+                  <span>Alerts flagged</span>
+                  <span className="font-semibold text-white">{alerts.length}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3">
+                  <span>Customer reviews available</span>
+                  <span className="font-semibold text-white">{reviews.length}</span>
+                </div>
               </div>
-              <Bell className="h-5 w-5 text-cyan-200" />
-            </div>
+            )}
 
-            <div className="mt-6 space-y-3">
-              {liveTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4"
+            <div className="pt-2">
+              <Button href="/partner" variant="primary" className="w-full justify-center">
+                Open service management
+              </Button>
+            </div>
+          </div>
+        </GlassPanel>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <GlassPanel
+              key={stat.label}
+              className={`rounded-3xl border border-white/10 bg-gradient-to-br ${stat.accent} p-5`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm text-white/60">{stat.label}</p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{stat.value}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-3">
+                  <Icon className="h-5 w-5 text-white" />
+                </div>
+              </div>
+              <p className="mt-4 text-sm text-white/60">{stat.hint}</p>
+            </GlassPanel>
+          );
+        })}
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <GlassPanel className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.22em] text-white/45">Quick actions</p>
+              <h2 className="text-2xl font-semibold text-white">Keep operations moving</h2>
+            </div>
+            <ArrowRight className="h-5 w-5 text-white/35" />
+          </div>
+
+          <div className="space-y-4">
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <Link
+                  key={action.title}
+                  href={action.href}
+                  className="group flex items-start gap-4 rounded-3xl border border-white/10 bg-slate-950/35 p-4 transition hover:border-cyan-300/30 hover:bg-cyan-400/10"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-medium text-white">{task.title}</p>
-                      <p className="mt-1 text-sm text-white/60">{task.meta}</p>
-                    </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <Icon className="h-5 w-5 text-cyan-100" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-base font-semibold text-white">{action.title}</p>
+                    <p className="text-sm leading-6 text-white/65">{action.description}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </GlassPanel>
+
+        <GlassPanel className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.22em] text-white/45">Recent activity</p>
+              <h2 className="text-2xl font-semibold text-white">Bookings and payments</h2>
+            </div>
+            <BarChart3 className="h-5 w-5 text-white/35" />
+          </div>
+
+          <div className="space-y-3">
+            {recentActivity.length ? (
+              recentActivity.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3"
+                >
+                  <div>
+                    <p className="font-medium text-white">{item.title}</p>
+                    <p className="text-sm text-white/60">{item.detail}</p>
+                  </div>
+                  <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-white/35">{item.time}</span>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/25 px-4 py-6 text-sm text-white/55">
+                No live operational activity is available yet for this operator account.
+              </div>
+            )}
+          </div>
+        </GlassPanel>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <GlassPanel className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.22em] text-white/45">Workspace modules</p>
+              <h2 className="text-2xl font-semibold text-white">Built for operator performance</h2>
+            </div>
+            <Settings2 className="h-5 w-5 text-white/35" />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {modules.map((module) => {
+              const Icon = module.icon;
+              return (
+                <div
+                  key={module.title}
+                  className="rounded-3xl border border-white/10 bg-slate-950/35 p-5"
+                >
+                  <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <Icon className="h-5 w-5 text-cyan-100" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">{module.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-white/65">{module.description}</p>
+                </div>
+              );
+            })}
+          </div>
+        </GlassPanel>
+
+        <GlassPanel className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.22em] text-white/45">Priority alerts</p>
+              <h2 className="text-2xl font-semibold text-white">Needs attention</h2>
+            </div>
+            <Bell className="h-5 w-5 text-white/35" />
+          </div>
+
+          <div className="space-y-3">
+            {alerts.length ? (
+              alerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-4"
+                >
+                  <div className="mb-2 flex items-center justify-between gap-4">
+                    <p className="font-medium text-white">{alert.title}</p>
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        task.priority === "High"
-                          ? "bg-rose-400/15 text-rose-200"
-                          : task.priority === "Medium"
-                            ? "bg-amber-400/15 text-amber-200"
-                            : "bg-emerald-400/15 text-emerald-200"
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                        alert.priority === "High"
+                          ? "bg-rose-400/15 text-rose-100"
+                          : alert.priority === "Low"
+                            ? "bg-emerald-400/15 text-emerald-100"
+                            : "bg-amber-400/15 text-amber-100"
                       }`}
                     >
-                      {task.priority}
+                      {alert.priority}
                     </span>
                   </div>
+                  <p className="text-sm text-white/65">{alert.meta}</p>
                 </div>
-              ))}
-            </div>
-          </GlassPanel>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <GlassPanel className="p-6 sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">Activity feed</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Recent platform events</h2>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/25 px-4 py-6 text-sm text-white/55">
+                No alert has been raised across your operator workspace.
               </div>
-              <BarChart3 className="h-5 w-5 text-cyan-200" />
-            </div>
-
-            <div className="mt-6 space-y-4">
-              {activityFeed.length ? (
-                activityFeed.map((entry) => (
-                  <div key={entry.id} className="relative pl-6">
-                    <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_20px_rgba(103,232,249,0.6)]" />
-                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="font-medium text-white">{entry.title}</p>
-                        <span className="text-xs uppercase tracking-[0.2em] text-white/45">{entry.time}</span>
-                      </div>
-                      <p className="mt-2 text-sm text-white/65">{entry.detail}</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
-                  No live booking activity yet.
-                </div>
-              )}
-            </div>
-          </GlassPanel>
-
-          <GlassPanel className="p-6 sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">Modules</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Operational building blocks</h2>
-              </div>
-              <Users className="h-5 w-5 text-cyan-200" />
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {modules.map((module) => {
-                const Icon = module.icon;
-                return (
-                  <div
-                    key={module.title}
-                    className="rounded-3xl border border-white/10 bg-white/5 p-5"
-                  >
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/8 text-cyan-200">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">{module.title}</h3>
-                    <p className="mt-2 text-sm text-white/65">{module.description}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </GlassPanel>
-        </section>
-      </div>
+            )}
+          </div>
+        </GlassPanel>
+      </section>
     </main>
   );
 }
